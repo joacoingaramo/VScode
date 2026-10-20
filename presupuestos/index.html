@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Presupuestos</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="no-print">
+  <h1>Editor de Presupuestos</h1>
+  <div class="acciones">
+    <button id="btn-nuevo">Nuevo</button>
+    <button id="btn-deshacer" title="Ctrl+Z">Deshacer</button>
+    <button id="btn-importar">Importar</button>
+    <button id="btn-exportar">Exportar JSON</button>
+    <button id="btn-csv">Exportar CSV</button>
+    <button id="btn-imprimir" class="primario">Imprimir / PDF</button>
+    <input type="file" id="archivo" accept=".json,.csv" hidden>
+  </div>
+</header>
+
+<main>
+  <section class="datos">
+    <label>Cliente <input id="cliente" placeholder="Nombre del cliente"></label>
+    <label>Fecha <input id="fecha" type="date"></label>
+    <label>N° <input id="numero" placeholder="0001"></label>
+    <label>Moneda <input id="moneda" value="$" maxlength="4"></label>
+  </section>
+
+  <section class="rebaja no-print">
+    <h2>Bajar precio rápido</h2>
+    <div class="fila">
+      <span>Descuento general:</span>
+      <button data-pct="5">-5%</button>
+      <button data-pct="10">-10%</button>
+      <button data-pct="15">-15%</button>
+      <button data-pct="20">-20%</button>
+      <input id="pct-custom" type="number" min="0" max="100" step="0.5" placeholder="%">
+      <button id="btn-pct">Aplicar %</button>
+    </div>
+    <div class="fila">
+      <span>Llegar a un total de:</span>
+      <input id="total-objetivo" type="number" min="0" step="0.01" placeholder="Total deseado">
+      <button id="btn-objetivo">Ajustar</button>
+      <label class="chk"><input type="checkbox" id="solo-seleccion"> Solo ítems seleccionados</label>
+    </div>
+    <div class="fila">
+      <span>Redondear precios:</span>
+      <button data-redondeo="1">a 1</button>
+      <button data-redondeo="10">a 10</button>
+      <button data-redondeo="100">a 100</button>
+      <button data-redondeo="1000">a 1000</button>
+      <button id="btn-restaurar" class="peligro">Volver a precios originales</button>
+    </div>
+  </section>
+
+  <section>
+    <table id="tabla">
+      <thead>
+        <tr>
+          <th class="no-print"><input type="checkbox" id="sel-todos"></th>
+          <th>Descripción</th>
+          <th class="num">Cant.</th>
+          <th class="num no-print">P. original</th>
+          <th class="num">P. unitario</th>
+          <th class="num">Desc. %</th>
+          <th class="num">Subtotal</th>
+          <th class="no-print"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button id="btn-agregar" class="no-print">+ Agregar ítem</button>
+  </section>
+
+  <section class="totales">
+    <div><span>Subtotal</span><strong id="t-subtotal"></strong></div>
+    <div class="no-print"><span>Original</span><strong id="t-original"></strong></div>
+    <div class="no-print ahorro"><span>Rebaja</span><strong id="t-ahorro"></strong></div>
+    <div>
+      <span>IVA <input id="iva" type="number" min="0" max="100" step="0.5" value="21" class="mini">%</span>
+      <strong id="t-iva"></strong>
+    </div>
+    <div class="total"><span>TOTAL</span><strong id="t-total"></strong></div>
+  </section>
+
+  <section>
+    <label class="bloque">Notas <textarea id="notas" rows="3" placeholder="Condiciones, validez, forma de pago..."></textarea></label>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
