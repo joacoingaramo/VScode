@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Presupuestos</title>
+<style>
+:root {
+  --bg: #f6f7f9;
+  --card: #fff;
+  --text: #1d2330;
+  --muted: #6b7280;
+  --borde: #dfe3e8;
+  --primario: #2563eb;
+  --verde: #15803d;
+  --rojo: #b91c1c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+header {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--card); border-bottom: 1px solid var(--borde);
+}
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 16px; margin: 0 0 8px; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+section { background: var(--card); border: 1px solid var(--borde); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.acciones, .fila { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fila + .fila { margin-top: 8px; }
+.fila > span { min-width: 170px; color: var(--muted); }
+button {
+  font: inherit; padding: 6px 12px; border: 1px solid var(--borde);
+  background: #fff; border-radius: 6px; cursor: pointer;
+}
+button:hover { background: #eef2f7; }
+button.primario { background: var(--primario); color: #fff; border-color: var(--primario); }
+button.peligro { color: var(--rojo); }
+input, textarea {
+  font: inherit; padding: 6px 8px; border: 1px solid var(--borde); border-radius: 6px; background: #fff; color: inherit;
+}
+input[type=number] { width: 110px; }
+input.mini { width: 60px; padding: 2px 4px; }
+.datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.datos label, .bloque { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 13px; }
+.datos input, .bloque textarea { color: var(--text); font-size: 15px; width: 100%; }
+.chk { display: flex; gap: 6px; align-items: center; color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 6px; border-bottom: 1px solid var(--borde); text-align: left; }
+th { font-size: 13px; color: var(--muted); font-weight: 600; }
+.num { text-align: right; }
+td input { width: 100%; }
+td input[type=number] { text-align: right; }
+td.desc input { min-width: 200px; }
+td.cant input { width: 70px; }
+td.pct input { width: 70px; }
+td.orig { color: var(--muted); white-space: nowrap; }
+td.sub { font-weight: 600; white-space: nowrap; }
+tr.rebajado td.pu input { color: var(--verde); font-weight: 600; }
+td .borrar { color: var(--rojo); border: none; background: none; font-size: 18px; padding: 0 6px; }
+#btn-agregar { margin-top: 8px; }
+
+.totales { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.totales div { display: flex; gap: 16px; min-width: 300px; justify-content: space-between; }
+.totales .ahorro strong { color: var(--verde); }
+.totales .total { font-size: 20px; border-top: 2px solid var(--text); padding-top: 6px; margin-top: 4px; }
+
+@media (max-width: 700px) {
+  .fila > span { min-width: 100%; }
+  table, thead, tbody, tr, td, th { display: block; }
+  thead { display: none; }
+  tr { border-bottom: 2px solid var(--borde); padding: 6px 0; }
+  td { border: none; padding: 3px 0; }
+  .totales div { min-width: 100%; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  section { border: none; padding: 4px 0; }
+  input, textarea { border: none; padding: 0; }
+  tr.rebajado td.pu input { color: inherit; font-weight: normal; }
+}
+</style>
+</head>
+<body>
+<header class="no-print">
+  <h1>Editor de Presupuestos</h1>
+  <div class="acciones">
+    <button id="btn-nuevo">Nuevo</button>
+    <button id="btn-deshacer" title="Ctrl+Z">Deshacer</button>
+    <button id="btn-importar">Importar</button>
+    <button id="btn-exportar">Exportar JSON</button>
+    <button id="btn-csv">Exportar CSV</button>
+    <button id="btn-imprimir" class="primario">Imprimir / PDF</button>
+    <input type="file" id="archivo" accept=".json,.csv" hidden>
+  </div>
+</header>
+
+<main>
+  <section class="datos">
+    <label>Cliente <input id="cliente" placeholder="Nombre del cliente"></label>
+    <label>Fecha <input id="fecha" type="date"></label>
+    <label>N° <input id="numero" placeholder="0001"></label>
+    <label>Moneda <input id="moneda" value="$" maxlength="4"></label>
+  </section>
+
+  <section class="rebaja no-print">
+    <h2>Bajar precio rápido</h2>
+    <div class="fila">
+      <span>Descuento general:</span>
+      <button data-pct="5">-5%</button>
+      <button data-pct="10">-10%</button>
+      <button data-pct="15">-15%</button>
+      <button data-pct="20">-20%</button>
+      <input id="pct-custom" type="number" min="0" max="100" step="0.5" placeholder="%">
+      <button id="btn-pct">Aplicar %</button>
+    </div>
+    <div class="fila">
+      <span>Llegar a un total de:</span>
+      <input id="total-objetivo" type="number" min="0" step="0.01" placeholder="Total deseado">
+      <button id="btn-objetivo">Ajustar</button>
+      <label class="chk"><input type="checkbox" id="solo-seleccion"> Solo ítems seleccionados</label>
+    </div>
+    <div class="fila">
+      <span>Redondear precios:</span>
+      <button data-redondeo="1">a 1</button>
+      <button data-redondeo="10">a 10</button>
+      <button data-redondeo="100">a 100</button>
+      <button data-redondeo="1000">a 1000</button>
+      <button id="btn-restaurar" class="peligro">Volver a precios originales</button>
+    </div>
+  </section>
+
+  <section>
+    <table id="tabla">
+      <thead>
+        <tr>
+          <th class="no-print"><input type="checkbox" id="sel-todos"></th>
+          <th>Descripción</th>
+          <th class="num">Cant.</th>
+          <th class="num no-print">P. original</th>
+          <th class="num">P. unitario</th>
+          <th class="num">Desc. %</th>
+          <th class="num">Subtotal</th>
+          <th class="no-print"></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <button id="btn-agregar" class="no-print">+ Agregar ítem</button>
+  </section>
+
+  <section class="totales">
+    <div><span>Subtotal</span><strong id="t-subtotal"></strong></div>
+    <div class="no-print"><span>Original</span><strong id="t-original"></strong></div>
+    <div class="no-print ahorro"><span>Rebaja</span><strong id="t-ahorro"></strong></div>
+    <div>
+      <span>IVA <input id="iva" type="number" min="0" max="100" step="0.5" value="21" class="mini">%</span>
+      <strong id="t-iva"></strong>
+    </div>
+    <div class="total"><span>TOTAL</span><strong id="t-total"></strong></div>
+  </section>
+
+  <section>
+    <label class="bloque">Notas <textarea id="notas" rows="3" placeholder="Condiciones, validez, forma de pago..."></textarea></label>
+  </section>
+</main>
+
+<script>
+// Editor de presupuestos: carga ítems y aplica rebajas rápidas
+// (porcentaje, total objetivo, redondeo). Se guarda solo en localStorage.
+
+const CLAVE = 'presupuesto-actual';
+const $ = (s) => document.querySelector(s);
+const tbody = $('#tabla tbody');
+
+let estado = cargar() || nuevoPresupuesto();
+let historial = [];
+let snapshotFoco = null;
+
+function nuevoPresupuesto() {
+  return {
+    cliente: '', numero: '', moneda: '$', iva: 21, notas: '',
+    fecha: new Date().toISOString().slice(0, 10),
+    items: [nuevoItem('Ejemplo de ítem', 1, 1000)],
+  };
+}
+
+function nuevoItem(desc = '', cant = 1, precio = 0) {
+  return { id: crypto.randomUUID(), desc, cant, original: precio, precio, pct: 0, sel: false };
+}
+
+// ---------- cálculos ----------
+
+const redondear2 = (n) => Math.round(n * 100) / 100;
+const subtotalItem = (it) => it.cant * it.precio * (1 - it.pct / 100);
+const subtotalOriginal = (it) => it.cant * it.original;
+const suma = (items, f) => items.reduce((a, it) => a + f(it), 0);
+
+function fmt(n) {
+  return estado.moneda + ' ' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function objetivos() {
+  const sel = estado.items.filter((it) => it.sel);
+  return $('#solo-seleccion').checked && sel.length ? sel : estado.items;
+}
+
+// ---------- historial ----------
+
+function guardarHistorial(snap = JSON.stringify(estado)) {
+  historial.push(snap);
+  if (historial.length > 100) historial.shift();
+}
+
+function deshacer() {
+  const prev = historial.pop();
+  if (!prev) return;
+  estado = JSON.parse(prev);
+  renderTodo();
+}
+
+// ---------- rebajas ----------
+
+function aplicarPorcentaje(p) {
+  if (!(p > 0 && p < 100)) return alert('Ingresá un porcentaje entre 0 y 100.');
+  guardarHistorial();
+  for (const it of objetivos()) it.precio = redondear2(it.precio * (1 - p / 100));
+  renderTodo();
+}
+
+function ajustarATotal(totalDeseado) {
+  if (!(totalDeseado > 0)) return alert('Ingresá un total válido.');
+  const afectados = objetivos();
+  const fijos = estado.items.filter((it) => !afectados.includes(it));
+  const subDeseado = totalDeseado / (1 + estado.iva / 100);
+  const subAfectados = suma(afectados, subtotalItem);
+  const restante = subDeseado - suma(fijos, subtotalItem);
+  if (subAfectados <= 0 || restante <= 0) {
+    return alert('No se puede llegar a ese total con los ítems elegidos.');
+  }
+  guardarHistorial();
+  const factor = restante / subAfectados;
+  for (const it of afectados) it.precio = redondear2(it.precio * factor);
+  corregirCentavos(afectados, restante);
+  renderTodo();
+}
+
+// Tras redondear a centavos el total puede quedar corrido unos centavos:
+// se compensa en el ítem afectado de cantidad 1 sin descuento, si existe.
+function corregirCentavos(afectados, objetivo) {
+  const dif = redondear2(objetivo - suma(afectados, subtotalItem));
+  const it = afectados.find((i) => i.cant === 1 && i.pct === 0);
+  if (dif && it) it.precio = redondear2(it.precio + dif);
+}
+
+function redondearPrecios(paso) {
+  guardarHistorial();
+  // Se redondea hacia abajo: la idea es bajar el precio, nunca subirlo.
+  for (const it of objetivos()) it.precio = Math.floor(it.precio / paso) * paso;
+  renderTodo();
+}
+
+function restaurar() {
+  guardarHistorial();
+  for (const it of objetivos()) { it.precio = it.original; it.pct = 0; }
+  renderTodo();
+}
+
+// ---------- render ----------
+
+function renderFila(it) {
+  const tr = document.createElement('tr');
+  tr.dataset.id = it.id;
+  tr.innerHTML = `
+    <td class="no-print"><input type="checkbox" data-campo="sel"></td>
+    <td class="desc"><input data-campo="desc" placeholder="Descripción"></td>
+    <td class="cant"><input type="number" min="0" step="any" data-campo="cant"></td>
+    <td class="num orig no-print"></td>
+    <td class="pu"><input type="number" min="0" step="0.01" data-campo="precio"></td>
+    <td class="pct"><input type="number" min="0" max="100" step="0.5" data-campo="pct"></td>
+    <td class="num sub"></td>
+    <td class="no-print"><button class="borrar" title="Eliminar">×</button></td>`;
+  tr.querySelector('[data-campo=sel]').checked = it.sel;
+  for (const campo of ['desc', 'cant', 'precio', 'pct']) {
+    tr.querySelector(`[data-campo=${campo}]`).value = it[campo];
+  }
+  return tr;
+}
+
+function renderTodo() {
+  for (const campo of ['cliente', 'numero', 'fecha', 'moneda', 'iva', 'notas']) {
+    $('#' + campo).value = estado[campo];
+  }
+  tbody.replaceChildren(...estado.items.map(renderFila));
+  actualizarTotales();
+}
+
+// Actualiza cifras sin re-crear inputs (para no perder el foco al tipear).
+function actualizarTotales() {
+  for (const it of estado.items) {
+    const tr = tbody.querySelector(`tr[data-id="${it.id}"]`);
+    if (!tr) continue;
+    tr.querySelector('.orig').textContent = fmt(it.original);
+    tr.querySelector('.sub').textContent = fmt(subtotalItem(it));
+    tr.classList.toggle('rebajado', it.precio < it.original);
+  }
+  const sub = suma(estado.items, subtotalItem);
+  const orig = suma(estado.items, subtotalOriginal);
+  const iva = sub * estado.iva / 100;
+  $('#t-subtotal').textContent = fmt(sub);
+  $('#t-original').textContent = fmt(orig);
+  const ahorro = orig - sub;
+  $('#t-ahorro').textContent = fmt(ahorro) + (orig > 0 ? ` (${(ahorro / orig * 100).toFixed(1)}%)` : '');
+  $('#t-iva').textContent = fmt(iva);
+  $('#t-total').textContent = fmt(sub + iva);
+  $('#sel-todos').checked = estado.items.length > 0 && estado.items.every((it) => it.sel);
+  guardar();
+}
+
+// ---------- persistencia ----------
+
+function guardar() {
+  try { localStorage.setItem(CLAVE, JSON.stringify(estado)); } catch {}
+}
+
+function cargar() {
+  try { return JSON.parse(localStorage.getItem(CLAVE)); } catch { return null; }
+}
+
+function descargar(nombre, contenido, tipo) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  a.download = nombre;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function nombreArchivo(ext) {
+  return `presupuesto-${estado.numero || 'sin-numero'}-${estado.fecha}.${ext}`;
+}
+
+function exportarCSV() {
+  const esc = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  const filas = [['Descripción', 'Cantidad', 'Precio original', 'Precio unitario', 'Descuento %', 'Subtotal']];
+  for (const it of estado.items) {
+    filas.push([it.desc, it.cant, it.original, it.precio, it.pct, redondear2(subtotalItem(it))]);
+  }
+  descargar(nombreArchivo('csv'), filas.map((f) => f.map(esc).join(';')).join('\n'), 'text/csv');
+}
+
+// CSV simple: descripción;cantidad;precio (también acepta coma como separador).
+function importarCSV(texto) {
+  const lineas = texto.split(/\r?\n/).filter((l) => l.trim());
+  const sep = lineas[0]?.includes(';') ? ';' : ',';
+  const num = (v) => parseFloat(String(v ?? '').replace(/"/g, '').replace(',', '.')) || 0;
+  const items = [];
+  for (const linea of lineas) {
+    const [desc, cant, precio] = linea.split(sep).map((c) => c.replace(/^"|"$/g, '').trim());
+    if (isNaN(parseFloat(cant))) continue; // salta encabezados
+    items.push(nuevoItem(desc, num(cant), num(precio)));
+  }
+  return items;
+}
+
+function importar(archivo) {
+  const lector = new FileReader();
+  lector.onload = () => {
+    try {
+      guardarHistorial();
+      if (archivo.name.toLowerCase().endsWith('.csv')) {
+        estado.items = importarCSV(lector.result);
+      } else {
+        estado = { ...nuevoPresupuesto(), ...JSON.parse(lector.result) };
+      }
+      renderTodo();
+    } catch (e) {
+      historial.pop();
+      alert('No se pudo leer el archivo: ' + e.message);
+    }
+  };
+  lector.readAsText(archivo);
+}
+
+// ---------- eventos ----------
+
+const itemDe = (el) => estado.items.find((it) => it.id === el.closest('tr')?.dataset.id);
+
+tbody.addEventListener('focusin', () => { snapshotFoco = JSON.stringify(estado); });
+tbody.addEventListener('change', () => {
+  if (snapshotFoco) guardarHistorial(snapshotFoco);
+  snapshotFoco = JSON.stringify(estado);
+});
+
+tbody.addEventListener('input', (e) => {
+  const it = itemDe(e.target);
+  const campo = e.target.dataset.campo;
+  if (!it || !campo) return;
+  if (campo === 'sel') it.sel = e.target.checked;
+  else if (campo === 'desc') it.desc = e.target.value;
+  else {
+    const valor = parseFloat(e.target.value) || 0;
+    // Mientras el ítem no esté rebajado, cargar el precio también fija el original.
+    if (campo === 'precio' && it.precio === it.original) it.original = valor;
+    it[campo] = valor;
+  }
+  actualizarTotales();
+});
+
+tbody.addEventListener('click', (e) => {
+  if (!e.target.classList.contains('borrar')) return;
+  guardarHistorial();
+  estado.items = estado.items.filter((it) => it !== itemDe(e.target));
+  renderTodo();
+});
+
+// Si se edita el precio original directamente, se toma como nuevo original.
+tbody.addEventListener('dblclick', (e) => {
+  const td = e.target.closest('td.orig');
+  if (!td) return;
+  const it = itemDe(td);
+  const v = parseFloat(prompt('Nuevo precio original:', it.original));
+  if (isNaN(v)) return;
+  guardarHistorial();
+  it.original = v;
+  renderTodo();
+});
+
+for (const campo of ['cliente', 'numero', 'fecha', 'moneda', 'notas', 'iva']) {
+  $('#' + campo).addEventListener('input', (e) => {
+    estado[campo] = campo === 'iva' ? parseFloat(e.target.value) || 0 : e.target.value;
+    actualizarTotales();
+  });
+}
+
+$('#sel-todos').addEventListener('change', (e) => {
+  for (const it of estado.items) it.sel = e.target.checked;
+  renderTodo();
+});
+
+$('#btn-agregar').addEventListener('click', () => {
+  guardarHistorial();
+  estado.items.push(nuevoItem());
+  renderTodo();
+  tbody.lastElementChild.querySelector('[data-campo=desc]').focus();
+});
+
+document.querySelectorAll('[data-pct]').forEach((b) =>
+  b.addEventListener('click', () => aplicarPorcentaje(parseFloat(b.dataset.pct))));
+document.querySelectorAll('[data-redondeo]').forEach((b) =>
+  b.addEventListener('click', () => redondearPrecios(parseFloat(b.dataset.redondeo))));
+
+$('#btn-pct').addEventListener('click', () => aplicarPorcentaje(parseFloat($('#pct-custom').value)));
+$('#btn-objetivo').addEventListener('click', () => ajustarATotal(parseFloat($('#total-objetivo').value)));
+$('#btn-restaurar').addEventListener('click', restaurar);
+$('#btn-deshacer').addEventListener('click', deshacer);
+$('#btn-imprimir').addEventListener('click', () => window.print());
+$('#btn-exportar').addEventListener('click', () =>
+  descargar(nombreArchivo('json'), JSON.stringify(estado, null, 2), 'application/json'));
+$('#btn-csv').addEventListener('click', exportarCSV);
+$('#btn-importar').addEventListener('click', () => $('#archivo').click());
+$('#archivo').addEventListener('change', (e) => {
+  if (e.target.files[0]) importar(e.target.files[0]);
+  e.target.value = '';
+});
+
+$('#btn-nuevo').addEventListener('click', () => {
+  if (!confirm('¿Empezar un presupuesto nuevo? Se puede deshacer.')) return;
+  guardarHistorial();
+  estado = nuevoPresupuesto();
+  renderTodo();
+});
+
+document.addEventListener('keydown', (e) => {
+  const enTexto = e.target.matches('input:not([type=checkbox]), textarea');
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !enTexto) {
+    e.preventDefault();
+    deshacer();
+  }
+});
+
+renderTodo();
+</script>
+</body>
+</html>
